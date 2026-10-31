@@ -36,12 +36,27 @@ _PROFILE = """(version 1)
 """
 
 
+_KIND: str | None = None
+
+
 def sandbox_kind() -> str:
-    if sys.platform == "darwin" and shutil.which("sandbox-exec"):
-        return "sandbox-exec"
-    if sys.platform.startswith("linux") and shutil.which("unshare"):
-        return "unshare"
-    return "audit-hook-only"
+    """Pick the strongest OS sandbox that actually works here (probed once).
+
+    Many Linux hosts (e.g. Ubuntu 24.04 CI runners) forbid unprivileged user
+    namespaces, so `unshare -rn` is tried for real before being relied on."""
+    global _KIND
+    if _KIND is None:
+        _KIND = "audit-hook-only"
+        if sys.platform == "darwin" and shutil.which("sandbox-exec"):
+            _KIND = "sandbox-exec"
+        elif sys.platform.startswith("linux") and shutil.which("unshare"):
+            try:
+                ok = subprocess.run(["unshare", "-rn", "true"], capture_output=True, timeout=10).returncode == 0
+            except (OSError, subprocess.SubprocessError):
+                ok = False
+            if ok:
+                _KIND = "unshare"
+    return _KIND
 
 
 class WorkerDied(Exception):
