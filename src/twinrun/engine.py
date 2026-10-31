@@ -30,8 +30,9 @@ class Group:
     call: str                 # rendered smallest input, e.g. "f(3, b=2)"
     base: str
     head: str
-    shrunk: bool              # True when Hypothesis found a smaller input than the one we first saw
+    shrunk: bool              # True when the input is Hypothesis' minimal example
     raw_input: tuple = field(default=((), {}), repr=False)
+    test: str | None = None   # ready-to-paste pytest regression test, when expressible
 
 
 @dataclass
@@ -179,10 +180,11 @@ def analyze_candidate(cand: Candidate, base_root: Path, head_root: Path,
         name = cand.qualname
         for kind in sorted(groups, key=C.KIND_ORDER.index):
             items = groups[kind]
-            smallest = min(items, key=lambda it: C.input_size(it[0]))
-            shrunk_call, shrunk = smallest[0], False
+            smallest = min(items, key=lambda it: C.input_size(_strip_defaults(plan, it[0])))
+            shrunk_call, shrunk = _strip_defaults(plan, smallest[0]), False
             if opts.shrink and kind != C.TIMEOUT:  # each timeout probe costs a full second
                 found = _shrink(plan.strategy, base, head, kind, opts.shrink_examples)
+                found = _strip_defaults(plan, found) if found is not None else None
                 # Hypothesis' result is minimal under its own ordering; keep it unless what we
                 # already saw is strictly simpler by repr length.
                 if found is not None and C.input_size(found)[0] <= C.input_size(shrunk_call)[0]:
@@ -193,12 +195,28 @@ def analyze_candidate(cand: Candidate, base_root: Path, head_root: Path,
                 shrunk_call, bo, ho, shrunk = smallest[0], smallest[1], smallest[2], False
             res.groups.append(Group(kind, len(items), C.show_call(name, *shrunk_call),
                                     C.show_outcome(bo, kind=kind), C.show_outcome(ho, kind=kind),
-                                    shrunk, shrunk_call))
+                                    shrunk, shrunk_call,
+                                    C.regression_test(h_mod, name, shrunk_call, bo, ho, kind)))
         return res
     finally:
         base.close()
         head.close()
         res.seconds = round(time.monotonic() - t0, 2)
+
+
+def _strip_defaults(plan, call):
+    """Drop arguments that only repeat the parameter's literal default: f(40.0, False) -> f(40.0)."""
+    args, kwargs = list(call[0]), dict(call[1])
+    pos = [p for p in plan.params if p.kind == "pos"]
+
+    def is_default(p, v):
+        return p.has_default and type(v) is type(p.default) and v == p.default
+
+    while args and len(args) <= len(pos) and is_default(pos[len(args) - 1], args[-1]) and not kwargs:
+        args.pop()
+    by_name = {p.name: p for p in plan.params}
+    kwargs = {k: v for k, v in kwargs.items() if not (k in by_name and is_default(by_name[k], v))}
+    return (tuple(args), kwargs)
 
 
 def _shrink(strategy, base: Worker, head: Worker, kind: str, budget: int):

@@ -18,16 +18,21 @@ class Verdict:
     locked: bool
 
 
+def plural(n: int, word: str, many: str | None = None) -> str:
+    return f"{n} {word if n == 1 else (many or word + 's')}"
+
+
 def verdict(report: Report, labels: set[str] | list[str]) -> Verdict:
     locked = bool(LOCK_LABELS & {lbl.lower() for lbl in labels})
     n = len(report.divergent)
     groups = sum(len(f.groups) for f in report.functions)
     if n == 0:
-        title = f"No behavior change in {len(report.compared)} compared function(s)"
+        title = f"No behavior change in {plural(len(report.compared), 'compared function')}"
         if not report.compared:
             title = "No changed functions could be compared"
         return Verdict("success", title, locked)
-    title = f"{n} function(s) behave differently ({groups} kind(s) of divergence)"
+    title = (f"{plural(n, 'function')} {'behaves' if n == 1 else 'behave'} differently "
+             f"({plural(groups, 'kind')} of divergence)")
     if locked:
         return Verdict("failure", "Behavior lock: " + title, locked)
     return Verdict("neutral", title, locked)
@@ -38,37 +43,81 @@ def _cell(s: str) -> str:
     return f"`{s}`" if s else " "
 
 
+STATUS = {  # words first: emoji alone are announced oddly by screen readers
+    "success": ("✅", "Passed"),
+    "neutral": ("ℹ️", "For review"),
+    "failure": ("❌", "Failed"),
+}
+
+
 def table(report: Report) -> str:
-    rows = ["| function | divergence | smallest input | base output | head output |",
+    rows = ["| Function | What changed | Smallest input | Before (base) | After (head) |",
             "|---|---|---|---|---|"]
     for f in report.divergent:
         for g in f.groups:
             note = "" if g.shrunk else " (not shrunk)"
-            rows.append(f"| `{f.qualname}` | {g.kind} ×{g.count} | {_cell(g.call)}{note} | "
+            seen = plural(g.count, "input")
+            rows.append(f"| `{f.qualname}` | {g.kind.capitalize()} ({seen}) | {_cell(g.call)}{note} | "
                         f"{_cell(g.base)} | {_cell(g.head)} |")
     return "\n".join(rows)
 
 
+def merge_tests(tests: list[str]) -> str:
+    """Combine several generated test modules into one file: imports once at the top, then the tests."""
+    imports: list[str] = []
+    bodies: list[str] = []
+    for t in tests:
+        lines = t.strip("\n").splitlines()
+        i = 0
+        while i < len(lines) and (lines[i].startswith(("import ", "from ")) or not lines[i].strip()):
+            if lines[i].strip() and lines[i] not in imports:
+                imports.append(lines[i])
+            i += 1
+        bodies.append("\n".join(lines[i:]).rstrip())
+    imports.sort(key=lambda ln: (not ln.startswith("import "), ln))
+    head = [ln for ln in imports if ln.startswith("import ")]
+    froms = [ln for ln in imports if ln.startswith("from ")]
+    top = "\n".join(head) + ("\n\n" if head and froms else "") + "\n".join(froms)
+    return top + "\n\n\n" + "\n\n\n".join(bodies)
+
+
+def tests_block(report: Report) -> str:
+    tests = [g.test for f in report.divergent for g in f.groups if g.test]
+    if not tests:
+        return ""
+    code = merge_tests(tests)
+    return ("<details><summary>Regression tests for these inputs "
+            f"({plural(len(tests), 'test')}, ready to paste)</summary>\n\n"
+            "Each test pins the **base** behavior, so it passes before this PR and fails after it. "
+            "Keep the ones for changes you did not intend.\n\n"
+            f"```python\n{code}\n```\n\n</details>")
+
+
 def body(report: Report, v: Verdict, *, head_sha: str = "", base_sha: str = "") -> str:
     lines: list[str] = []
-    icon = {"success": "✅", "neutral": "🟡", "failure": "❌"}[v.conclusion]
-    lines.append(f"### {icon} TwinRun · {v.title}")
+    icon, word = STATUS[v.conclusion]
+    lines.append(f"### {icon} TwinRun: {word}. {v.title}")
     if base_sha and head_sha:
-        lines.append(f"Ran every changed function at merge-base `{base_sha[:7]}` and head `{head_sha[:7]}` "
-                     "on the same generated inputs, in a sandbox.")
+        lines.append(f"Every changed function ran at merge-base `{base_sha[:7]}` and at head `{head_sha[:7]}` "
+                     "on the same generated inputs, inside a sandbox.")
     if v.locked:
-        lines.append("🔒 **Behavior lock is on** (label `refactor` / `no-behavior-change`): "
-                     "any divergence fails this check.")
+        lines.append("")
+        lines.append("> [!IMPORTANT]\n> **Behavior lock is on** (label `refactor` or `no-behavior-change`), "
+                     "so any difference fails this check.")
     lines.append("")
     if report.divergent:
         lines.append(table(report))
         lines.append("")
-        lines.append("<sub>Smallest input was shrunk by Hypothesis unless marked (not shrunk). "
-                     "×N = how many generated inputs showed that divergence.</sub>")
+        lines.append("<sub>Each input was shrunk to the simplest one Hypothesis could find, unless it is marked "
+                     "(not shrunk). The count is how many generated inputs showed that difference.</sub>")
         lines.append("")
-    stats = (f"**{len(report.compared)}** compared · **{len(report.divergent)}** diverged · "
+        block = tests_block(report)
+        if block:
+            lines.append(block)
+            lines.append("")
+    stats = (f"**{len(report.compared)}** compared · **{len(report.divergent)}** changed behavior · "
              f"**{len(report.skipped)}** skipped · "
-             f"{sum(f.inputs for f in report.compared)} inputs · {report.seconds}s · sandbox: {report.sandbox}")
+             f"{sum(f.inputs for f in report.compared)} inputs in {report.seconds}s · sandbox: {report.sandbox}")
     lines.append(stats)
     same = [f for f in report.compared if not f.diverged]
     if same:

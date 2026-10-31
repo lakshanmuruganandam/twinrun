@@ -31,7 +31,7 @@ def trees_equal(a, b) -> bool:
             if math.isinf(x) or math.isinf(y):
                 return x == y
             return math.isclose(x, y, rel_tol=REL_TOL, abs_tol=ABS_TOL)
-        return all(trees_equal(x, y) for x, y in zip(a, b))
+        return all(trees_equal(x, y) for x, y in zip(a, b, strict=True))
     return a == b
 
 
@@ -147,3 +147,81 @@ def input_size(call: tuple[tuple, dict]) -> tuple[int, str]:
     """Smaller is simpler: shorter repr first, then lexicographic for stability."""
     r = repr(call)
     return (len(r), r)
+
+
+# ----------------------------------------------------------------- regression tests
+
+_BUILTIN_EXC = {n for n, v in __import__("builtins").__dict__.items()
+                if isinstance(v, type) and issubclass(v, BaseException)}
+
+
+def _literal(tree) -> str | None:
+    """Python source for a canonical tree, or None when it isn't a plain literal."""
+    if not isinstance(tree, (tuple, list)) or not tree:
+        return None
+    if tree[0] in ("obj", "repr", "iter", "deep") or tree[0] not in (
+            "NoneType", "bool", "int", "float", "str", "bytes", "list", "tuple", "set", "frozenset", "dict",
+            "complex"):
+        return None
+    src = _show(tree)
+    try:
+        import ast
+
+        ast.literal_eval(src)
+    except (ValueError, SyntaxError, TypeError, MemoryError, RecursionError):
+        return None  # nan, inf, nested objects...
+    return src
+
+
+def _has_float(tree) -> bool:
+    if isinstance(tree, (tuple, list)):
+        if len(tree) == 2 and tree[0] == "float":
+            return True
+        return any(_has_float(x) for x in tree)
+    return False
+
+
+def regression_test(module: str, qualname: str, call: tuple, base: dict, head: dict, kind: str) -> str | None:
+    """A ready-to-paste pytest test that pins the merge-base behavior for this input.
+
+    Returns None when the input or the expected value can't be written as plain Python."""
+    import ast
+    import re as _re
+
+    args, kwargs = call
+    try:
+        if ast.literal_eval(repr((tuple(args), dict(kwargs)))) != (tuple(args), dict(kwargs)):
+            return None
+    except (ValueError, SyntaxError, TypeError, MemoryError, RecursionError):
+        return None
+    top = qualname.split(".")[0]
+    slug = _re.sub(r"[^0-9a-zA-Z]+", "_", f"{qualname}_{kind}").strip("_").lower()
+    call_src = show_call(qualname, tuple(args), dict(kwargs), limit=10**9)
+    head_desc = show_outcome(head, limit=120, kind=kind)
+    lines = []
+    if kind == MUTATION and args and isinstance(args[0], (list, dict, set)) and base.get("args_after"):
+        before = repr(args[0])
+        rest = ", ".join(["arg"] + [repr(a) for a in args[1:]] + [f"{k}={v!r}" for k, v in kwargs.items()])
+        lines = [f"    arg = {before}", f"    {qualname}({rest})",
+                 f"    assert arg == {before}  # head mutates it: {head_desc}"]
+    elif base["kind"] == "exc" and base["type"] in _BUILTIN_EXC and kind in (REMOVED_EXC, EXC_CHANGE):
+        match = ""
+        if base.get("msg") and (kind == EXC_CHANGE or base["type"] == head.get("type")):
+            match = f", match={'^' + _re.escape(base['msg']) + '$'!r}"  # same type: the message is the contract
+        lines = [f"    with pytest.raises({base['type']}{match}):", f"        {call_src}",
+                 f"    # head instead: {head_desc}"]
+    elif base["kind"] == "ok" and kind in (VALUE, TYPE, NEW_EXC):
+        expected = _literal(base["value"])
+        if expected is None:
+            return None
+        rhs = f"pytest.approx({expected})" if _has_float(base["value"]) and kind != TYPE else expected
+        lines = [f"    assert {call_src} == {rhs}  # head: {head_desc}"]
+        if kind == TYPE:
+            lines.append(f"    assert type({call_src}) is {base['type']}")
+    else:
+        return None
+    needs_pytest = any("pytest." in ln for ln in lines)
+    header = (["import pytest", ""] if needs_pytest else []) + [f"from {module} import {top}", "", ""]
+    body = [f"def test_{slug}():",
+            "    # Pins the merge-base behavior. If the change is intended, update the expectation."] + lines
+    return "\n".join(header + body) + "\n"

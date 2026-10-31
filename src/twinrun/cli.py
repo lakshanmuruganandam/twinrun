@@ -58,16 +58,62 @@ def build_manifest(template: dict, *, name: str, webhook_url: str, port: int) ->
     return m
 
 
+PAGE_CSS = """
+:root{color-scheme:light dark;--bg:#ffffff;--fg:#1f2328;--muted:#59636e;--accent:#0969da;--ok:#1a7f37;--bad:#cf222e;--card:#f6f8fa;--line:#d1d9e0}
+@media (prefers-color-scheme:dark){:root{--bg:#0d1117;--fg:#f0f6fc;--muted:#9198a1;--accent:#4493f8;--ok:#3fb950;--bad:#f85149;--card:#151b23;--line:#3d444d}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.6 system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:40rem;margin:0 auto;padding:3rem 1rem}h1{font-size:1.6rem;line-height:1.3;margin:0 0 .75rem}
+p{margin:.5rem 0}.muted{color:var(--muted)}.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:1.25rem 1.5rem}
+.ok{color:var(--ok)}.bad{color:var(--bad)}code{font:0.9em ui-monospace,SFMono-Regular,Menlo,monospace}
+.btn{display:inline-block;margin-top:1rem;padding:.65rem 1.1rem;border-radius:8px;border:0;background:var(--accent);color:#fff;font:inherit;font-weight:600;text-decoration:none;cursor:pointer}
+a{color:var(--accent)}:focus-visible{outline:3px solid var(--accent);outline-offset:3px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+"""
+
+
+def page(title: str, body: str, *, head_extra: str = "") -> str:
+    """Small accessible HTML shell: language, viewport, real title, light/dark contrast, visible focus."""
+    return (f'<!doctype html><html lang="en"><head><meta charset="utf-8">'
+            f'<meta name="viewport" content="width=device-width,initial-scale=1">'
+            f"<title>{html.escape(title)}</title><style>{PAGE_CSS}</style>{head_extra}</head>"
+            f"<body><main>{body}</main></body></html>")
+
+
 def form_page(manifest: dict, state: str, org: str | None) -> str:
     target = (f"https://github.com/organizations/{org}/settings/apps/new" if org
               else "https://github.com/settings/apps/new")
-    return f"""<!doctype html><meta charset="utf-8"><title>Create TwinRun</title>
-<body style="font:16px system-ui;padding:3em;background:#0d1117;color:#e6edf3">
-<h2>Creating the TwinRun GitHub App…</h2><p>You'll be asked to confirm on GitHub.</p>
+    body = f"""<h1>Create your TwinRun GitHub App</h1>
+<div class="card" role="status" aria-live="polite">
+<p>Sending you to GitHub to create <strong>{html.escape(manifest["name"])}</strong>. GitHub will ask you to confirm.</p>
+<p class="muted">Permissions: checks (write), pull requests (write), contents (read), metadata (read).
+Event: pull_request. The app is private to your account.</p>
 <form id="f" action="{target}?state={state}" method="post">
 <input type="hidden" name="manifest" value="{html.escape(json.dumps(manifest))}">
-<button type="submit">Continue to GitHub</button></form>
+<button class="btn" type="submit">Continue to GitHub</button>
+</form>
+<noscript><p>JavaScript is off, so press <strong>Continue to GitHub</strong> above.</p></noscript>
+</div>
 <script>document.getElementById('f').submit()</script>"""
+    return page("Create TwinRun – GitHub App setup", body)
+
+
+def done_page(data: dict, env: str) -> str:
+    install = f"{data['html_url']}/installations/new"
+    body = f"""<h1><span class="ok" aria-hidden="true">✓</span> {html.escape(data['name'])} is ready</h1>
+<div class="card" role="status">
+<p>The app was created and its credentials were saved to <code>{html.escape(env)}</code> (keep this file private).</p>
+<p><strong>Next:</strong> install it on the repositories you want checked.</p>
+<a class="btn" href="{html.escape(install)}">Install {html.escape(data['name'])} on a repository</a>
+<p class="muted">Then run <code>twinrun serve</code> and the smee relay printed in your terminal.</p>
+</div>"""
+    return page(f"{data['name']} created – TwinRun", body)
+
+
+def error_page(message: str) -> str:
+    body = f"""<h1><span class="bad" aria-hidden="true">✕</span> Setup did not finish</h1>
+<div class="card" role="alert"><p>{html.escape(message)}</p>
+<p>Run <code>twinrun create-app</code> again to start over.</p></div>"""
+    return page("Setup failed – TwinRun", body)
 
 
 def convert_code(code: str) -> dict:
@@ -118,21 +164,19 @@ def cmd_create_app(ns) -> int:
             if u.path == "/callback":
                 q = parse_qs(u.query)
                 if q.get("state", [""])[0] != state or "code" not in q:
-                    return self._send(400, "state mismatch, start again with `twinrun create-app`")
+                    return self._send(400, error_page("The request did not come from this setup session "
+                                                      "(state mismatch)."))
                 try:
                     data = convert_code(q["code"][0])
                     env = save_credentials(data, webhook_url, Path(ns.out))
                     result.update(data=data, env=str(env))
-                    install = f"{data['html_url']}/installations/new"
-                    self._send(200, f"<body style='font:16px system-ui;padding:3em'><h2>✅ {html.escape(data['name'])} "
-                                    f"created</h2><p>Credentials saved to {html.escape(str(env))}.</p>"
-                                    f"<p><a href='{install}'>Install it on a repository →</a></p>")
+                    self._send(200, done_page(data, str(env)))
                 except Exception as e:  # noqa: BLE001
                     result["error"] = str(e)
-                    self._send(500, f"conversion failed: {html.escape(str(e))}")
+                    self._send(500, error_page(f"GitHub did not accept the app code: {e}"))
                 done.set()
                 return None
-            return self._send(404, "not found")
+            return self._send(404, error_page("Page not found."))
 
     srv = HTTPServer(("127.0.0.1", ns.port), Handler)
     threading.Thread(target=srv.serve_forever, daemon=True).start()

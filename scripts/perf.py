@@ -84,7 +84,8 @@ def main() -> int:
     if not perf.exists():
         perf.write_text("# TwinRun performance log\n\nGoal: a 50-function PR in under 3 minutes "
                         "(`uv run python scripts/perf.py`). Half the edits change behavior, half are refactors.\n\n"
-                        "| when | machine | functions | compared | diverged | inputs run | jobs | wall time | result |\n"
+                        "| when | machine | functions | compared | diverged | inputs run | jobs | wall time "
+                        "| result |\n"
                         "|---|---|---|---|---|---|---|---|---|\n")
     with perf.open("a") as fh:
         fh.write(line + "\n")

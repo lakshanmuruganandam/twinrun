@@ -7,16 +7,28 @@ A code diff shows what text changed. **TwinRun shows what the code now *does* di
 
 On every pull request, TwinRun finds the Python functions the PR touched, generates inputs
 for them, runs **both versions** (merge-base and head) on the **same inputs** inside a
-sandbox, and posts a **Behavior Diff** check with the smallest input that makes them disagree:
+sandbox, and posts a **Behavior Diff** check with the smallest input that makes them disagree,
+plus a regression test you can paste:
 
-| function | divergence | smallest input | base output | head output |
+| Function | What changed | Smallest input | Before (base) | After (head) |
 |---|---|---|---|---|
-| `shipping_cost` | value change ×9 | `shipping_cost(40.0)` | `5.99` | `0.0` |
-| `age_group` | value change ×4 | `age_group(18)` | `'adult'` | `'teen'` |
+| `shipping_cost` | Value change (9 inputs) | `shipping_cost(40.0)` | `5.99` | `0.0` |
+| `age_group` | Value change (4 inputs) | `age_group(18)` | `'adult'` | `'teen'` |
 
-![A real Behavior Diff check run on twinrun-playground PR #1, failing under behavior lock](docs/check-run.png)
+```python
+from lib.users import age_group
 
-*Real check run from the end-to-end test ([docs/E2E.md](docs/E2E.md)). The PR lowered a module constant and changed `<` to `<=`. Neither function's tests would have flagged it.*
+
+def test_age_group_value_change():
+    # Pins the merge-base behavior. If the change is intended, update the expectation.
+    assert age_group(18) == 'adult'  # head: 'teen'
+```
+
+**Website:** https://lakshanmuruganandam.github.io/twinrun/
+
+![A real Behavior Diff check run, marked Failed under behavior lock, listing shipping_cost, median and age_group with their smallest inputs and before/after outputs](docs/check-run.png)
+
+*Real check run from the end-to-end test ([docs/E2E.md](docs/E2E.md)). The PR lowered a module constant, changed `<` to `<=`, and made `median` sort its argument in place. TwinRun found all three.*
 
 A reviewer sees right away that `age_group(18)` changed, without having to work it out from a `<` → `<=`.
 A PR that claims to be "just a refactor" can *prove* it: add the `refactor` label, and the
@@ -42,15 +54,19 @@ check fails if behavior changed anywhere.
 5. **Shrink.** For each group, Hypothesis' `find()` searches for the simplest input that still shows
    that kind of divergence. The table shows the shrunk input. If shrinking didn't produce one,
    the row is marked "(not shrunk)" and shows the smallest input actually seen.
-6. **Report.** A check run named **Behavior Diff**, plus **one** PR comment that is edited in
-   place on every push (it is found by a hidden marker, so no comment spam).
+6. **Regression tests.** For each divergence TwinRun writes a pytest test that pins the base behavior
+   (with `pytest.approx` for floats, and `pytest.raises(..., match=...)` for exceptions). The benchmark
+   runs every generated test and requires it to pass on base and fail on head.
+7. **Report.** A check run named **Behavior Diff**, plus **one** PR comment that is edited in
+   place on every push (it is found by a hidden marker, so no comment spam). Status is given in words
+   (Passed / For review / Failed) as well as an icon, so it reads correctly with a screen reader.
 
 ## Behavior lock
 
 | PR labels | divergence found | check conclusion |
 |---|---|---|
 | none | no | ✅ success |
-| none | yes | 🟡 neutral, for information only |
+| none | yes | ℹ️ neutral ("For review"), for information only |
 | `refactor` or `no-behavior-change` | no | ✅ success |
 | `refactor` or `no-behavior-change` | yes | ❌ **failure** |
 
@@ -125,6 +141,8 @@ checks. A real TCP listener must see zero connections, and a sentinel file must 
 |---|---|
 | tests pass | `uv run pytest -q` |
 | ≥ 18/20 behavior changes caught, 0/10 refactor false alarms | `uv run python scripts/bench.py` → [BENCH.md](BENCH.md) |
+| generated regression tests pass on base and fail on head (21/21) | same command, "regression test" column |
+| lint clean | `uv run ruff check .` |
 | 50-function PR in < 3 min | `uv run python scripts/perf.py` → [PERF.md](PERF.md) |
 | sandbox blocks network / writes / fork, kills hangs | `uv run pytest -q tests/test_sandbox.py` |
 | end to end on GitHub | [docs/E2E.md](docs/E2E.md) |
