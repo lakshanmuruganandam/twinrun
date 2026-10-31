@@ -214,7 +214,7 @@ def _call(fn, args, kwargs, timeout: float) -> dict:
             tree = canonical(value)
         result = {"kind": "ok", "value": tree, "type": type(value).__name__}
     except _Timeout:
-        return {"kind": "timeout"}
+        return {"kind": "timeout", "how": f"interrupted after {timeout:g}s"}
     except RecursionError:
         result = {"kind": "exc", "type": "RecursionError", "msg": "maximum recursion depth exceeded"}
     except BaseException as e:  # noqa: BLE001 - we report every exception

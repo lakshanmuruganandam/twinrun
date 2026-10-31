@@ -59,6 +59,25 @@ class Plan:
     strategy: st.SearchStrategy     # draws (args_tuple, kwargs_dict)
     seeds: list[tuple[tuple, dict]] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)
+    consts: "Constants | None" = None
+
+    def boundary_sweep(self, templates: list[tuple[tuple, dict]], per_template: int = 3) -> list:
+        """Deterministic boundary probes: for each template call, replace one numeric
+        argument at a time with every constant-derived boundary value (c-1, c, c+1)."""
+        if self.consts is None:
+            return []
+        ints, floats = self.consts.int_candidates(), self.consts.float_candidates()
+        out = []
+        for args, kwargs in templates[:per_template]:
+            for i, v in enumerate(args):
+                pool = ints if type(v) is int else floats if type(v) is float else None
+                for c in pool or ():
+                    out.append((args[:i] + (c,) + args[i + 1:], dict(kwargs)))
+            for k, v in kwargs.items():
+                pool = ints if type(v) is int else floats if type(v) is float else None
+                for c in pool or ():
+                    out.append((tuple(args), {**kwargs, k: c}))
+        return out
 
 
 # --------------------------------------------------------------------- params
@@ -126,7 +145,7 @@ class Constants:
         out = {0, 1, -1}
         for c in self.ints:
             out.update((c - 1, c, c + 1))
-        return sorted(out)
+        return sorted(out, key=_simplicity)
 
     def float_candidates(self) -> list[float]:
         out = {0.0, 1.0, -1.0, 0.5}
@@ -134,13 +153,19 @@ class Constants:
             out.update((c, math.nextafter(c, math.inf), math.nextafter(c, -math.inf), c + 0.5, c - 0.5))
         for c in self.ints:
             out.update((float(c), c + 0.5, c - 0.5))
-        return sorted(out)
+        return sorted(out, key=_simplicity)
 
     def str_candidates(self) -> list[str]:
         out = {"", "a", " ", "A b"}
         for c in self.strs:
             out.update((c, c.upper(), c + "x", " " + c))
-        return sorted(out)
+        return sorted(out, key=lambda v: (len(v), v))
+
+
+def _simplicity(v):
+    """Hypothesis shrinks sampled_from toward index 0, so put the simplest values first:
+    0, 1, -1, 2, -2, ... (ties broken positive-first)."""
+    return (abs(v), v < 0, v)
 
 
 def collect_constants(cand: Candidate) -> Constants:
@@ -431,7 +456,7 @@ def build_plan(cand: Candidate, index: CallSiteIndex) -> Plan:
         notes.append(f"types inferred from {sites.count} call site(s) for: {', '.join(inferred)}")
 
     strategy = st.tuples(st.tuples(*strategies_pos), st.fixed_dictionaries(strategies_kw))
-    return Plan(params=params, strategy=strategy, seeds=_dedupe_calls(sites.whole), notes=notes)
+    return Plan(params=params, strategy=strategy, seeds=_dedupe_calls(sites.whole), notes=notes, consts=consts)
 
 
 def _dedupe_calls(calls):

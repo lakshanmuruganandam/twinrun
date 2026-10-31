@@ -43,7 +43,7 @@ def table(report: Report) -> str:
             "|---|---|---|---|---|"]
     for f in report.divergent:
         for g in f.groups:
-            note = "" if g.shrunk else " (seen)"
+            note = "" if g.shrunk else " (not shrunk)"
             rows.append(f"| `{f.qualname}` | {g.kind} ×{g.count} | {_cell(g.call)}{note} | "
                         f"{_cell(g.base)} | {_cell(g.head)} |")
     return "\n".join(rows)
@@ -63,7 +63,7 @@ def body(report: Report, v: Verdict, *, head_sha: str = "", base_sha: str = "") 
     if report.divergent:
         lines.append(table(report))
         lines.append("")
-        lines.append("<sub>Smallest input was shrunk by Hypothesis unless marked (seen). "
+        lines.append("<sub>Smallest input was shrunk by Hypothesis unless marked (not shrunk). "
                      "×N = how many generated inputs showed that divergence.</sub>")
         lines.append("")
     stats = (f"**{len(report.compared)}** compared · **{len(report.divergent)}** diverged · "

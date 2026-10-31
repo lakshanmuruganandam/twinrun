@@ -134,7 +134,7 @@ class Worker:
             alive = self.proc is not None and self.proc.poll() is None
             self.kill()
             if alive:
-                return {"kind": "timeout"}
+                return {"kind": "timeout", "how": f"process killed after {self.call_timeout + 2.0:g}s"}
             return {"kind": "exc", "type": "WorkerCrashed", "msg": "worker process died (resource limit?)"}
         return msg[1]
 

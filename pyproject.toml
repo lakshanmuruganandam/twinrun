@@ -30,5 +30,5 @@ dev = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-norecursedirs = ["tests/fixtures", "tests/sandbox_fixtures"]
+norecursedirs = [".*", "*.egg", "build", "dist", "node_modules", "tests/fixtures", "tests/sandbox_fixtures"]
 addopts = "-p no:cacheprovider"

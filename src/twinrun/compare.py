@@ -116,14 +116,20 @@ def _show(t) -> str:
     return repr(t)
 
 
-def show_outcome(o: dict, limit: int = 80) -> str:
+def show_outcome(o: dict, limit: int = 80, kind: str | None = None) -> str:
+    """Render one side. For side-effect divergences, show the side effect itself."""
     k = o["kind"]
-    if k == "ok":
+    if kind == MUTATION and o.get("args_after") is not None:
+        after = o["args_after"][1][0]  # ('tuple', [('list', positional...), kwargs])
+        s = f"args after call: {_show(after)[1:-1]}"
+    elif kind == STDOUT and k in ("ok", "exc"):
+        s = f"prints {o.get('stdout', '')!r}"
+    elif k == "ok":
         s = show_tree(o["value"], limit)
     elif k == "exc":
         s = f"raises {o['type']}({o['msg']!r})" if o["msg"] else f"raises {o['type']}"
     elif k == "timeout":
-        s = "timeout"
+        s = f"timeout ({o['how']})" if o.get("how") else "timeout"
     elif k == "blocked":
         s = f"blocked ({o['what']})"
     else:

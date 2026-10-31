@@ -116,7 +116,9 @@ def analyze_candidate(cand: Candidate, base_root: Path, head_root: Path,
         res.status, res.reason = "skipped", str(e)
         return res
     res.notes.extend(plan.notes)
-    calls = _dedupe(list(plan.seeds) + draw_inputs(plan.strategy, opts.max_examples))
+    drawn = draw_inputs(plan.strategy, opts.max_examples)
+    templates = list(plan.seeds) + drawn
+    calls = _dedupe(list(plan.seeds) + drawn + plan.boundary_sweep(templates))
 
     b_root, b_mod = import_target(base_root, cand.relpath)
     h_root, h_mod = import_target(head_root, cand.relpath)
@@ -137,6 +139,7 @@ def analyze_candidate(cand: Candidate, base_root: Path, head_root: Path,
         groups: dict[str, list] = {}
         blocked: list[str] = []
         timeouts_both = 0
+        timeouts_one_side = 0
         for call in calls:
             args, kwargs = call
             try:
@@ -156,6 +159,12 @@ def analyze_candidate(cand: Candidate, base_root: Path, head_root: Path,
             kind = C.classify(bo, ho)
             if kind:
                 groups.setdefault(kind, []).append((call, bo, ho))
+            if kind == C.TIMEOUT:
+                timeouts_one_side += 1
+                if timeouts_one_side >= 3:  # proven; every further probe costs a full timeout
+                    res.notes.append(f"stopped after {timeouts_one_side} timeouts on one side "
+                                     f"({res.inputs}/{len(calls)} inputs run)")
+                    break
 
         if blocked and len(blocked) >= res.inputs:
             res.status = "skipped"
@@ -174,14 +183,17 @@ def analyze_candidate(cand: Candidate, base_root: Path, head_root: Path,
             shrunk_call, shrunk = smallest[0], False
             if opts.shrink and kind != C.TIMEOUT:  # each timeout probe costs a full second
                 found = _shrink(plan.strategy, base, head, kind, opts.shrink_examples)
-                if found is not None and C.input_size(found) < C.input_size(shrunk_call):
+                # Hypothesis' result is minimal under its own ordering; keep it unless what we
+                # already saw is strictly simpler by repr length.
+                if found is not None and C.input_size(found)[0] <= C.input_size(shrunk_call)[0]:
                     shrunk_call, shrunk = found, True
             bo = base.call(*shrunk_call)
             ho = head.call(*shrunk_call)
             if C.classify(bo, ho) != kind:  # flaky function: fall back to what we observed
                 shrunk_call, bo, ho, shrunk = smallest[0], smallest[1], smallest[2], False
             res.groups.append(Group(kind, len(items), C.show_call(name, *shrunk_call),
-                                    C.show_outcome(bo), C.show_outcome(ho), shrunk, shrunk_call))
+                                    C.show_outcome(bo, kind=kind), C.show_outcome(ho, kind=kind),
+                                    shrunk, shrunk_call))
         return res
     finally:
         base.close()
