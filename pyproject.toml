@@ -1,0 +1,34 @@
+[project]
+name = "twinrun"
+version = "0.1.0"
+description = "Behavior Diff for pull requests: run changed functions at base and head on the same generated inputs and show where they differ."
+readme = "README.md"
+authors = [
+    { name = "LAKSHAN MURUGANANDAM", email = "95610803+lakshanmuruganandam@users.noreply.github.com" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.162.0",
+    "githubkit[auth-app]>=0.17.0",
+    "httpx>=0.28.1",
+    "hypothesis>=6.170.14",
+    "python-dotenv>=1.2.4",
+    "uvicorn[standard]>=0.54.0",
+]
+
+[project.scripts]
+twinrun = "twinrun.cli:main"
+
+[build-system]
+requires = ["uv_build>=0.11.21,<0.12.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.2.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+norecursedirs = ["tests/fixtures", "tests/sandbox_fixtures"]
+addopts = "-p no:cacheprovider"

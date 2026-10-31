@@ -1,0 +1,17 @@
+# Secrets: never commit
+.env
+.env.*
+*.pem
+# Python / tooling
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.hypothesis/
+dist/
+build/
+*.egg-info/
+# Local scratch
+/.twinrun-work/
+# Note: ~/.gitignore ('*') does not apply here: git reads only .gitignore files inside
+# the repo and core.excludesFile (unset). Checked with `git check-ignore -v` before committing.
