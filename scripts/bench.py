@@ -19,8 +19,11 @@ A change counts as caught only if the *edited function* is reported as diverging
 from __future__ import annotations
 
 import json
+import os
 import shutil
+import subprocess
 import sys
+import tempfile
 import textwrap
 import time
 from pathlib import Path
@@ -263,7 +266,8 @@ CASES = [
     ("rename_local_slugify", "refactor", "rename a local", "lib/text.py", "slugify",
      [("    out = []\n", "    chars = []\n"), ("            out.append(ch)", "            chars.append(ch)"),
       ('        elif out and out[-1] != "-":\n            out.append("-")\n    return "".join(out).strip("-")',
-       '        elif chars and chars[-1] != "-":\n            chars.append("-")\n    return "".join(chars).strip("-")')],
+       '        elif chars and chars[-1] != "-":\n            chars.append("-")\n'
+       '    return "".join(chars).strip("-")')],
      "out -> chars"),
     ("extract_helper_discount", "refactor", "extract a helper", "lib/pricing.py", "apply_discount",
      [('def apply_discount(price: float, percent: int) -> float:\n    if percent < 0 or percent > 100:\n'
@@ -336,6 +340,19 @@ def build() -> list[dict]:
     return metas
 
 
+def check_test(test_src: str, case_dir: Path) -> str:
+    """Run a generated regression test against base and head. 'ok' = passes on base, fails on head."""
+    with tempfile.TemporaryDirectory() as tmp:
+        f = Path(tmp) / "test_twinrun_generated.py"
+        f.write_text(test_src)
+        rc = {}
+        for side in ("base", "head"):
+            env = {**os.environ, "PYTHONPATH": str(case_dir / side)}
+            rc[side] = subprocess.run([sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", str(f)],
+                                      cwd=tmp, env=env, capture_output=True).returncode
+    return "ok" if rc["base"] == 0 and rc["head"] == 1 else f"BAD(base rc={rc['base']}, head rc={rc['head']})"
+
+
 def run(metas: list[dict], opts: Options) -> list[dict]:
     rows = []
     for m in metas:
@@ -352,11 +369,19 @@ def run(metas: list[dict], opts: Options) -> list[dict]:
             outcome = "clean" if ok else "FALSE ALARM"
         g = (target_div or div or [None])[0]
         first = g.groups[0] if g and g.groups else None
+        tests = [x.test for f in target_div for x in f.groups if x.test] if m["kind"] == "change" else []
+        test_results = [check_test(t, m["dir"]) for t in tests]
+        test_cell = ("—" if m["kind"] != "change" else
+                     "none" if not tests else
+                     f"{sum(r == 'ok' for r in test_results)}/{len(tests)} ✓" if all(r == "ok" for r in test_results)
+                     else "; ".join(test_results))
         rows.append({
             **{k: m[k] for k in ("name", "kind", "category", "target")},
             "outcome": outcome, "ok": ok, "seconds": round(dt, 2),
             "candidates": len(rep.functions), "compared": len(rep.compared),
             "evidence": f"{first.kind}: {first.call} → base {first.base} / head {first.head}" if first else "",
+            "tests": test_cell, "tests_ok": all(r == "ok" for r in test_results), "n_tests": len(tests),
+            "n_tests_ok": sum(r == "ok" for r in test_results),
         })
         print(f"{m['name']:<28} {m['kind']:<9} {outcome:<12} {dt:5.1f}s  {rows[-1]['evidence'][:90]}")
     return rows
@@ -367,7 +392,7 @@ def write_md(rows: list[dict], opts: Options) -> str:
     refactors = [r for r in rows if r["kind"] == "refactor"]
     caught = sum(r["ok"] for r in changes)
     alarms = sum(not r["ok"] for r in refactors)
-    passed = caught >= 18 and alarms == 0
+    passed = caught >= 18 and alarms == 0 and all(r["tests_ok"] for r in rows)
     lines = [
         "# TwinRun benchmark",
         "",
@@ -376,15 +401,18 @@ def write_md(rows: list[dict], opts: Options) -> str:
         "",
         f"- **Behavior changes caught: {caught}/{len(changes)}** (goal ≥ 18)",
         f"- **False alarms on pure refactors: {alarms}/{len(refactors)}** (goal 0)",
+        f"- **Generated regression tests that pass on base and fail on head: "
+        f"{sum(r['n_tests_ok'] for r in rows)}/{sum(r['n_tests'] for r in rows)}** "
+        f"({sum(1 for r in changes if r['n_tests'])}/{len(changes)} caught changes came with a test)",
         f"- Result: **{'PASS' if passed else 'FAIL'}** · total {sum(r['seconds'] for r in rows):.1f}s",
         "",
-        "| # | fixture | kind | category | outcome | compared | time | evidence (smallest input) |",
-        "|---|---|---|---|---|---|---|---|",
+        "| # | fixture | kind | category | outcome | compared | regression test | time | evidence (smallest input) |",
+        "|---|---|---|---|---|---|---|---|---|",
     ]
     for i, r in enumerate(rows, 1):
         ev = r["evidence"].replace("|", "\\|")
         lines.append(f"| {i} | `{r['name']}` | {r['kind']} | {r['category']} | {r['outcome']} | "
-                     f"{r['compared']} | {r['seconds']}s | {ev} |")
+                     f"{r['compared']} | {r['tests']} | {r['seconds']}s | {ev} |")
     lines += ["", "A change is *caught* only when the edited function itself is reported as diverging. "
               "A refactor is *clean* only when no function at all diverges; the *compared* column shows the "
               "refactored function really ran (the reformat fixture has 0 because its AST is unchanged, "
@@ -407,7 +435,8 @@ def main() -> int:
     print(md)
     changes = [r for r in rows if r["kind"] == "change"]
     refactors = [r for r in rows if r["kind"] == "refactor"]
-    return 0 if sum(r["ok"] for r in changes) >= 18 and all(r["ok"] for r in refactors) else 1
+    tests_ok = all(r["tests_ok"] for r in rows)
+    return 0 if sum(r["ok"] for r in changes) >= 18 and all(r["ok"] for r in refactors) and tests_ok else 1
 
 
 if __name__ == "__main__":
