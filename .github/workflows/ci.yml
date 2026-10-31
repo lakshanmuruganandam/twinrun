@@ -1,0 +1,30 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+      - run: uv sync --locked
+      - name: Unit tests
+        run: uv run pytest -q
+      - name: Benchmark (>= 18/20 caught, 0/10 false alarms)
+        run: uv run python scripts/bench.py
+      - name: Performance (50 functions < 3 min)
+        run: uv run python scripts/perf.py

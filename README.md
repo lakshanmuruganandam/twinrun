@@ -1,5 +1,8 @@
 # TwinRun — Behavior Diff for pull requests
 
+[![CI](https://github.com/lakshanmuruganandam/twinrun/actions/workflows/ci.yml/badge.svg)](https://github.com/lakshanmuruganandam/twinrun/actions/workflows/ci.yml)
+![Python 3.12](https://img.shields.io/badge/python-3.12-blue) ![License: MIT](https://img.shields.io/badge/license-MIT-green)
+
 A code diff shows what text changed. **TwinRun shows what the code now *does* differently.**
 
 On every pull request, TwinRun finds the Python functions the PR touched, generates inputs
@@ -57,7 +60,7 @@ check in branch protection, and "pure refactor" PRs can't quietly change behavio
 ## 60-second setup
 
 ```bash
-git clone <this repo> twinrun && cd twinrun
+git clone https://github.com/lakshanmuruganandam/twinrun.git && cd twinrun
 uv sync
 uv run twinrun create-app            # opens GitHub; click "Create GitHub App" once
 #  -> writes .env (APP_ID, PRIVATE_KEY_PATH, WEBHOOK_SECRET, SMEE_URL) and the .pem, both git-ignored
@@ -86,7 +89,8 @@ The code under test is untrusted, so TwinRun stacks three layers:
 
 1. **OS sandbox.** On macOS each worker runs under `sandbox-exec` with a profile that denies all
    network access and every file write outside the worker's own temp dir. On Linux it runs under
-   `unshare -rn` (a fresh network namespace with no interfaces) when available.
+   `unshare -rn` (a fresh network namespace with no interfaces) when the host allows it; otherwise
+   TwinRun says `sandbox: audit-hook-only` in every report and relies on layers 2 and 3.
 2. **Audit hook** inside the worker (`sys.addaudithook`, which can't be removed once installed).
    It blocks sockets, `subprocess`/`os.system`/`fork`/`exec`, `ctypes`, and writes outside the
    temp dir, and records what was attempted so the report can say so.
@@ -140,3 +144,7 @@ src/twinrun/
   server.py      FastAPI app (/webhook)
   cli.py         twinrun analyze | serve | create-app
 ```
+
+## License
+
+MIT © 2026 Lakshan Muruganandam

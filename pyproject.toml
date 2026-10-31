@@ -6,6 +6,7 @@ readme = "README.md"
 authors = [
     { name = "LAKSHAN MURUGANANDAM", email = "95610803+lakshanmuruganandam@users.noreply.github.com" }
 ]
+license = "MIT"
 requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.162.0",
