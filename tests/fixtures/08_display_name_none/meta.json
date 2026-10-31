@@ -1,0 +1,8 @@
+{
+  "name": "display_name_none",
+  "kind": "change",
+  "category": "None handling",
+  "file": "lib/users.py",
+  "target": "display_name",
+  "description": "last=\"\" now adds a trailing space"
+}

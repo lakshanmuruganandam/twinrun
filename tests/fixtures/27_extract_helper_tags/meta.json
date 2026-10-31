@@ -1,0 +1,8 @@
+{
+  "name": "extract_helper_tags",
+  "kind": "refactor",
+  "category": "extract a helper",
+  "file": "lib/users.py",
+  "target": "merge_tags",
+  "description": "dedupe loop moved to _unique"
+}

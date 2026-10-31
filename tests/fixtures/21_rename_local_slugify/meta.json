@@ -1,0 +1,8 @@
+{
+  "name": "rename_local_slugify",
+  "kind": "refactor",
+  "category": "rename a local",
+  "file": "lib/text.py",
+  "target": "slugify",
+  "description": "out -> chars"
+}

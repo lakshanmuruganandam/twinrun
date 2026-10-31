@@ -1,0 +1,8 @@
+{
+  "name": "discount_rounding",
+  "kind": "change",
+  "category": "rounding change",
+  "file": "lib/pricing.py",
+  "target": "apply_discount",
+  "description": "truncates instead of rounding"
+}

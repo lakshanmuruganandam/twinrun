@@ -1,0 +1,8 @@
+{
+  "name": "merge_tags_order",
+  "kind": "change",
+  "category": "value change",
+  "file": "lib/users.py",
+  "target": "merge_tags",
+  "description": "loses insertion order"
+}

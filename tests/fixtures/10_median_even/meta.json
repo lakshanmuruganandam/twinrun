@@ -1,0 +1,8 @@
+{
+  "name": "median_even",
+  "kind": "change",
+  "category": "value change",
+  "file": "lib/stats.py",
+  "target": "median",
+  "description": "even-length median wrong"
+}

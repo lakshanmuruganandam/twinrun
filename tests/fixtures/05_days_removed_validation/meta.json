@@ -1,0 +1,8 @@
+{
+  "name": "days_removed_validation",
+  "kind": "change",
+  "category": "removed exception",
+  "file": "lib/dates.py",
+  "target": "days_in_month",
+  "description": "month 13 no longer raises"
+}

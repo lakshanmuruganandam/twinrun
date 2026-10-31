@@ -1,0 +1,8 @@
+{
+  "name": "clamp_new_exception",
+  "kind": "change",
+  "category": "new exception",
+  "file": "lib/stats.py",
+  "target": "clamp",
+  "description": "now raises when lo > hi"
+}

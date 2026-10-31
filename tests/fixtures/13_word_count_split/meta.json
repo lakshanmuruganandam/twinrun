@@ -1,0 +1,8 @@
+{
+  "name": "word_count_split",
+  "kind": "change",
+  "category": "value change",
+  "file": "lib/text.py",
+  "target": "word_count",
+  "description": "tabs/newlines no longer split words"
+}

@@ -1,0 +1,8 @@
+{
+  "name": "age_group_boundary",
+  "kind": "change",
+  "category": "flipped boundary",
+  "file": "lib/users.py",
+  "target": "age_group",
+  "description": "18-year-olds become teens"
+}

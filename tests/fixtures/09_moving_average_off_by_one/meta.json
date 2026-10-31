@@ -1,0 +1,8 @@
+{
+  "name": "moving_average_off_by_one",
+  "kind": "change",
+  "category": "off-by-one",
+  "file": "lib/stats.py",
+  "target": "moving_average",
+  "description": "drops the last window"
+}

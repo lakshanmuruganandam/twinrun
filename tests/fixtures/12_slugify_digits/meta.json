@@ -1,0 +1,8 @@
+{
+  "name": "slugify_digits",
+  "kind": "change",
+  "category": "value change",
+  "file": "lib/text.py",
+  "target": "slugify",
+  "description": "drops digits"
+}

@@ -1,0 +1,8 @@
+{
+  "name": "extract_helper_discount",
+  "kind": "refactor",
+  "category": "extract a helper",
+  "file": "lib/pricing.py",
+  "target": "apply_discount",
+  "description": "validation moved to _check_percent"
+}
