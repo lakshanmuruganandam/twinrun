@@ -15,7 +15,8 @@ from twinrun.server import create_app
 def report(divergent=True):
     fr = FunctionResult("m.py", "f", "compared", "body changed", inputs=100)
     if divergent:
-        fr.groups = [Group("value change", 7, "f(18)", "'adult'", "'te|en'", True)]
+        fr.groups = [Group("value change", 7, "f(18)", "'adult'", "'te|en'", True,
+                           test="from m import f\n\n\ndef test_f():\n    assert f(18) == 'adult'\n")]
     skipped = FunctionResult("m.py", "K.m", "skipped", "instance method: needs an object to call it on")
     return Report([fr, skipped], ["m.py"], [], [], [], 1.5, "sandbox-exec")
 
@@ -32,11 +33,32 @@ def test_comment_rendering():
     v = render.verdict(report(True), ["refactor"])
     body = render.comment(report(True), v, head_sha="a" * 40, base_sha="b" * 40)
     assert body.startswith(render.MARKER)
-    assert "| function | divergence | smallest input | base output | head output |" in body
-    assert "| `f` | value change ×7 | `f(18)` | `'adult'` | `'te\\|en'` |" in body  # pipe escaped
-    assert "Behavior lock is on" in body
+    assert "| Function | What changed | Smallest input | Before (base) | After (head) |" in body
+    assert "| `f` | Value change (7 inputs) | `f(18)` | `'adult'` | `'te\\|en'` |" in body  # pipe escaped
+    assert "Behavior lock is on" in body and "TwinRun: Failed." in body
     assert "instance method" in body and "Skipped (1)" in body
     assert "`bbbbbbb`" in body and "`aaaaaaa`" in body
+
+
+def test_regression_tests_block_and_plurals():
+    v = render.verdict(report(True), [])
+    body = render.body(report(True), v)
+    assert "Regression tests for these inputs (1 test, ready to paste)" in body
+    assert "```python\nfrom m import f" in body
+    assert v.title == "1 function behaves differently (1 kind of divergence)"
+    assert render.verdict(report(False), []).title == "No behavior change in 1 compared function"
+
+
+def test_merged_tests_are_one_valid_module():
+    from twinrun.render import merge_tests
+
+    a = "import pytest\n\nfrom m import f\n\n\ndef test_a():\n    assert f(1) == pytest.approx(1.0)\n"
+    b = "from m import f\n\n\ndef test_b():\n    assert f(2) == 2\n"
+    c = "from n import g\n\n\ndef test_c():\n    assert g() is None\n"
+    out = merge_tests([a, b, c])
+    compile(out, "merged.py", "exec")
+    assert out.count("from m import f") == 1 and out.startswith("import pytest\n\nfrom m import f\nfrom n import g")
+    assert out.index("def test_a") > out.index("from n import g")
 
 
 def test_check_output_respects_limits():
@@ -151,8 +173,9 @@ def test_webhook_server_signature_and_dispatch(make_pr):
     assert r.status_code == 202
     assert app.state.jobs[0].result()["conclusion"] == "neutral"
     ping = json.dumps({"zen": "x"}).encode()
-    assert c.post("/webhook", content=ping, headers={"X-GitHub-Event": "ping",
-                                                     "X-Hub-Signature-256": sign("sekret", ping)}).json() == {"pong": True}
+    pong = c.post("/webhook", content=ping, headers={"X-GitHub-Event": "ping",
+                                                     "X-Hub-Signature-256": sign("sekret", ping)})
+    assert pong.json() == {"pong": True}
 
 
 def test_manifest_builder():
@@ -167,3 +190,15 @@ def test_manifest_builder():
     assert m["redirect_url"] == "http://localhost:4000/callback"
     page = form_page(m, "st8", None)
     assert "https://github.com/settings/apps/new?state=st8" in page and "&quot;TwinRun-test&quot;" in page
+    # accessibility basics: language, title, viewport, live status, no-JS fallback
+    assert '<html lang="en">' in page and "<title>" in page and 'name="viewport"' in page
+    assert 'role="status"' in page and "<noscript>" in page and 'type="submit"' in page
+
+
+def test_done_and_error_pages_escape_and_are_accessible():
+    from twinrun.cli import done_page, error_page
+
+    d = done_page({"name": "<b>x</b>", "html_url": "https://github.com/apps/x"}, ".env")
+    assert "&lt;b&gt;" in d and "https://github.com/apps/x/installations/new" in d and 'role="status"' in d
+    e = error_page("<script>")
+    assert "&lt;script&gt;" in e and 'role="alert"' in e
