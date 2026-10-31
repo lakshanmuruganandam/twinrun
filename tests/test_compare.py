@@ -70,3 +70,45 @@ def test_grouping_and_shrinking(make_pr):
     assert kinds[C.NEW_EXC].call.startswith("f(501,")
     assert kinds[C.VALUE].call == "f(0, -1)" and kinds[C.VALUE].shrunk
     assert kinds[C.NEW_EXC].count > 1
+
+
+def test_regression_test_generation():
+    t = C.regression_test("pkg.m", "f", ((18,), {}), ok("adult"), ok("teen"), C.VALUE)
+    assert "from pkg.m import f" in t and "assert f(18) == 'adult'  # head: 'teen'" in t
+    t = C.regression_test("m", "f", ((0.5,), {}), ok(0.25), ok(0.5), C.VALUE)
+    assert "pytest.approx(0.25)" in t and t.startswith("import pytest")
+    t = C.regression_test("m", "f", ((0,), {}), exc("ZeroDivisionError", "integer division"),
+                          exc("ZeroDivisionError", "division by zero"), C.EXC_CHANGE)
+    assert "pytest.raises(ZeroDivisionError, match='^integer\\\\ division$')" in t
+    t = C.regression_test("m", "K.s", ((1,), {}), ok(1), ok(2), C.VALUE)
+    assert "from m import K" in t and "K.s(1)" in t
+    # Not expressible as plain Python -> no test rather than a wrong one
+    assert C.regression_test("m", "f", ((float("nan"),), {}), ok(1), ok(2), C.VALUE) is None
+    assert C.regression_test("m", "f", ((1,), {}), ok(1), {"kind": "timeout"}, C.TIMEOUT) is None
+
+
+def test_generated_tests_really_pass_on_base_and_fail_on_head(make_pr, tmp_path):
+    import os
+    import subprocess
+    import sys
+
+    base = "def f(x: int) -> int:\n    if x < 0:\n        raise ValueError('negative')\n    return x // 2\n"
+    head = "def f(x: int) -> int:\n    return abs(x) // 2 if x != 7 else 0\n"
+    b, h = make_pr({"m.py": base}, {"m.py": head})
+    rep = analyze(b, h, Options(max_examples=100))
+    tests = [g.test for f in rep.divergent for g in f.groups if g.test]
+    assert len(tests) >= 2
+    for i, src in enumerate(tests):
+        tf = tmp_path / f"test_gen_{i}.py"
+        tf.write_text(src)
+        rcs = [subprocess.run([sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", str(tf)],
+                              cwd=tmp_path, env={**os.environ, "PYTHONPATH": str(side)},
+                              capture_output=True).returncode for side in (b, h)]
+        assert rcs == [0, 1], (src, rcs)
+
+
+def test_default_arguments_are_dropped_from_the_shown_input(make_pr):
+    base = "def ship(total: float, express: bool = False) -> float:\n    return 0.0 if total >= 50 else 5.99\n"
+    b, h = make_pr({"m.py": base}, {"m.py": base.replace(">= 50", ">= 40")})
+    (fr,) = analyze(b, h).functions
+    assert fr.groups[0].call.startswith("ship(4") and "False" not in fr.groups[0].call
