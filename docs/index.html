@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TwinRun · Behavior Diff for pull requests</title>
+<meta name="description" content="TwinRun is a GitHub App that runs every changed Python function at merge-base and head on the same generated inputs, in a sandbox, and shows reviewers exactly where behavior changed.">
+<meta property="og:title" content="TwinRun · Behavior Diff for pull requests">
+<meta property="og:description" content="A code diff shows what text changed. TwinRun shows what the code now does differently.">
+<meta property="og:image" content="https://lakshanmuruganandam.github.io/twinrun/check-run.png">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230969da'/%3E%3Cpath d='M9 10h6v12H9zM17 10h6v12h-6z' fill='white'/%3E%3C/svg%3E">
+<style>
+:root{
+  color-scheme: light dark;
+  --bg:#ffffff; --bg2:#f6f8fa; --fg:#1f2328; --muted:#59636e; --line:#d1d9e0;
+  --accent:#0969da; --accent-fg:#ffffff; --ok:#1a7f37; --bad:#cf222e; --info:#9a6700;
+  --code-bg:#eff2f5; --radius:12px;
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0d1117; --bg2:#151b23; --fg:#f0f6fc; --muted:#9198a1; --line:#3d444d;
+    --accent:#4493f8; --accent-fg:#0d1117; --ok:#3fb950; --bad:#f85149; --info:#d29922; --code-bg:#1f2630;
+  }
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+@media (prefers-reduced-motion: reduce){html{scroll-behavior:auto}*{transition:none!important}}
+body{margin:0;background:var(--bg);color:var(--fg);font:17px/1.65 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+a{color:var(--accent);text-underline-offset:3px}
+:focus-visible{outline:3px solid var(--accent);outline-offset:3px;border-radius:4px}
+.skip{position:absolute;left:-999px;top:0;background:var(--accent);color:var(--accent-fg);padding:.6rem 1rem;z-index:10;border-radius:0 0 8px 0}
+.skip:focus{left:0}
+.wrap{max-width:68rem;margin:0 auto;padding:0 1rem}
+header.top{border-bottom:1px solid var(--line)}
+header.top .wrap{display:flex;align-items:center;justify-content:space-between;gap:1rem;min-height:3.75rem;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:.6rem;font-weight:700;color:var(--fg);text-decoration:none;font-size:1.1rem}
+.brand svg{flex:none}
+nav ul{display:flex;gap:1.25rem;list-style:none;margin:0;padding:0;flex-wrap:wrap}
+nav a{color:var(--muted);text-decoration:none;font-weight:500}
+nav a:hover{color:var(--fg);text-decoration:underline}
+.hero{padding-top:4.5rem;padding-bottom:3rem}
+.eyebrow{display:inline-block;font:600 .8rem/1 var(--mono);letter-spacing:.04em;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:.4rem .7rem}
+h1{font-size:clamp(2.1rem,5vw,3.4rem);line-height:1.1;margin:1rem 0 1rem;letter-spacing:-.02em;max-width:18ch}
+.lede{font-size:1.2rem;color:var(--muted);max-width:42rem;margin:0 0 1.75rem}
+.lede strong{color:var(--fg)}
+.cta{display:flex;gap:.75rem;flex-wrap:wrap}
+.btn{display:inline-flex;align-items:center;gap:.5rem;padding:.75rem 1.2rem;border-radius:10px;font-weight:600;text-decoration:none;border:1px solid var(--line);color:var(--fg);background:var(--bg2)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-fg)}
+.btn:hover{filter:brightness(1.07)}
+section{padding:3rem 0;border-top:1px solid var(--line)}
+h2{font-size:1.75rem;line-height:1.2;margin:0 0 .5rem;letter-spacing:-.01em}
+.sub{color:var(--muted);margin:0 0 1.75rem;max-width:44rem}
+.report{border:1px solid var(--line);border-radius:var(--radius);background:var(--bg2);overflow:hidden}
+.report-head{display:flex;align-items:center;gap:.6rem;padding:1rem 1.25rem;border-bottom:1px solid var(--line);font-weight:600;flex-wrap:wrap}
+.pill{font:600 .78rem/1 var(--mono);padding:.35rem .6rem;border-radius:999px;border:1px solid currentColor}
+.pill.bad{color:var(--bad)} .pill.ok{color:var(--ok)} .pill.info{color:var(--info)}
+.tablewrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;min-width:40rem;font-size:.95rem}
+caption{text-align:left;padding:1rem 1.25rem .25rem;color:var(--muted);font-size:.9rem}
+th,td{text-align:left;padding:.7rem 1.25rem;border-top:1px solid var(--line);vertical-align:top}
+th{font-weight:600;color:var(--muted);font-size:.85rem;text-transform:uppercase;letter-spacing:.04em}
+code,pre{font-family:var(--mono);font-size:.9em}
+td code{background:var(--code-bg);padding:.15rem .4rem;border-radius:6px}
+pre{background:var(--code-bg);border:1px solid var(--line);border-radius:var(--radius);padding:1rem 1.25rem;overflow-x:auto;line-height:1.5;margin:0}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(15rem,1fr));gap:1rem;list-style:none;margin:0;padding:0}
+.card{border:1px solid var(--line);border-radius:var(--radius);padding:1.25rem;background:var(--bg)}
+.card h3{margin:.25rem 0 .4rem;font-size:1.05rem}
+.card p{margin:0;color:var(--muted);font-size:.95rem}
+.step{font:700 .8rem/1 var(--mono);color:var(--accent)}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(12rem,1fr));gap:1rem;margin:0;padding:0;list-style:none}
+.stat{border:1px solid var(--line);border-radius:var(--radius);padding:1.25rem;background:var(--bg2)}
+.stat .n{display:block;font-size:2rem;font-weight:700;letter-spacing:-.02em}
+.stat .l{color:var(--muted);font-size:.95rem}
+.lock th[scope="row"]{text-transform:none;letter-spacing:0;font-size:.95rem;color:var(--fg)}
+figure{margin:0}
+figure img{width:100%;height:auto;border-radius:var(--radius);border:1px solid var(--line);display:block}
+figcaption{color:var(--muted);font-size:.9rem;margin-top:.6rem}
+details{border:1px solid var(--line);border-radius:var(--radius);padding:.9rem 1.25rem;background:var(--bg2);margin-top:1rem}
+summary{cursor:pointer;font-weight:600}
+details pre{margin-top:.9rem}
+ul.limits{padding-left:1.2rem;max-width:46rem} ul.limits li{margin:.35rem 0}
+footer{border-top:1px solid var(--line);padding:2rem 0;color:var(--muted);font-size:.95rem}
+footer .wrap{display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap}
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="#top" aria-label="TwinRun home">
+      <svg width="28" height="28" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="7" fill="currentColor" opacity=".12"/><path d="M8 9h7v14H8zM17 9h7v14h-7z" fill="currentColor"/></svg>
+      TwinRun
+    </a>
+    <nav aria-label="Primary">
+      <ul>
+        <li><a href="#how">How it works</a></li>
+        <li><a href="#lock">Behavior lock</a></li>
+        <li><a href="#setup">Setup</a></li>
+        <li><a href="#limits">Limits</a></li>
+        <li><a href="https://github.com/lakshanmuruganandam/twinrun">GitHub</a></li>
+      </ul>
+    </nav>
+  </div>
+</header>
+
+<main id="main">
+  <div class="wrap hero" id="top">
+    <span class="eyebrow">GitHub App · Python · MIT</span>
+    <h1>See what a pull request does, not just what it says.</h1>
+    <p class="lede">TwinRun runs every changed function at the <strong>merge-base</strong> and at the <strong>head</strong> on the same generated inputs, inside a sandbox. It shows reviewers the smallest input where they disagree, plus a regression test to keep.</p>
+    <div class="cta">
+      <a class="btn primary" href="#setup">Set it up in 60 seconds</a>
+      <a class="btn" href="https://github.com/lakshanmuruganandam/twinrun">View source on GitHub</a>
+    </div>
+  </div>
+
+  <section aria-labelledby="example-h">
+    <div class="wrap">
+      <h2 id="example-h">One table instead of a guessing game</h2>
+      <p class="sub">This PR changed <code>&lt;</code> to <code>&lt;=</code> and lowered one constant. Both are easy to miss in a diff. TwinRun found the exact inputs.</p>
+      <div class="report">
+        <div class="report-head"><span class="pill info">For review</span> TwinRun · 2 functions behave differently</div>
+        <div class="tablewrap">
+          <table>
+            <caption>Behavior Diff for the example pull request</caption>
+            <thead><tr><th scope="col">Function</th><th scope="col">What changed</th><th scope="col">Smallest input</th><th scope="col">Before (base)</th><th scope="col">After (head)</th></tr></thead>
+            <tbody>
+              <tr><td><code>shipping_cost</code></td><td>Value change</td><td><code>shipping_cost(40.0)</code></td><td><code>5.99</code></td><td><code>0.0</code></td></tr>
+              <tr><td><code>age_group</code></td><td>Value change</td><td><code>age_group(18)</code></td><td><code>'adult'</code></td><td><code>'teen'</code></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <details>
+        <summary>Regression tests TwinRun attached (ready to paste)</summary>
+<pre><code>from lib.users import age_group
+
+
+def test_age_group_value_change():
+    # Pins the merge-base behavior. If the change is intended, update the expectation.
+    assert age_group(18) == 'adult'  # head: 'teen'</code></pre>
+      </details>
+    </div>
+  </section>
+
+  <section id="how" aria-labelledby="how-h">
+    <div class="wrap">
+      <h2 id="how-h">How it works</h2>
+      <p class="sub">Five steps run on every push. A typical PR finishes in seconds.</p>
+      <ol class="grid">
+        <li class="card"><span class="step">01</span><h3>AST diff</h3><p>Finds functions whose syntax tree changed, or whose module constants changed. Reformatting, comments and docstrings are ignored.</p></li>
+        <li class="card"><span class="step">02</span><h3>Generate inputs</h3><p>Hypothesis strategies come from type hints, defaults and real call sites. Every constant is probed at c−1, c and c+1.</p></li>
+        <li class="card"><span class="step">03</span><h3>Run both, sandboxed</h3><p>Each side runs in its own locked-down process with no network, no writes outside a temp dir, and hard time limits.</p></li>
+        <li class="card"><span class="step">04</span><h3>Group &amp; shrink</h3><p>Differences are grouped by kind and shrunk to the simplest input that still shows them.</p></li>
+        <li class="card"><span class="step">05</span><h3>Report</h3><p>A check run and one PR comment that updates in place on every push, with regression tests to paste.</p></li>
+      </ol>
+    </div>
+  </section>
+
+  <section aria-labelledby="proof-h">
+    <div class="wrap">
+      <h2 id="proof-h">Measured, not claimed</h2>
+      <p class="sub">Every number is reproducible from the repository and re-checked by CI on macOS and Linux.</p>
+      <ul class="stats">
+        <li class="stat"><span class="n">20 / 20</span><span class="l">behavior changes caught in the benchmark</span></li>
+        <li class="stat"><span class="n">0 / 10</span><span class="l">false alarms on pure refactors</span></li>
+        <li class="stat"><span class="n">21 / 21</span><span class="l">generated tests pass on base and fail on head</span></li>
+        <li class="stat"><span class="n">≈ 8 s</span><span class="l">for a 50-function pull request</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <section id="lock" aria-labelledby="lock-h">
+    <div class="wrap">
+      <h2 id="lock-h">Behavior lock: prove a refactor is a refactor</h2>
+      <p class="sub">Add the <code>refactor</code> or <code>no-behavior-change</code> label, and any difference fails the check. Make <em>Behavior Diff</em> a required check, and "just a cleanup" can't quietly change behavior.</p>
+      <div class="report lock">
+        <div class="tablewrap">
+          <table>
+            <caption>Check conclusion by label and result</caption>
+            <thead><tr><th scope="col">Lock label</th><th scope="col">Difference found</th><th scope="col">Check</th></tr></thead>
+            <tbody>
+              <tr><th scope="row">No</th><td>No</td><td><span class="pill ok">Passed</span></td></tr>
+              <tr><th scope="row">No</th><td>Yes</td><td><span class="pill info">For review</span></td></tr>
+              <tr><th scope="row">Yes</th><td>No</td><td><span class="pill ok">Passed</span></td></tr>
+              <tr><th scope="row">Yes</th><td>Yes</td><td><span class="pill bad">Failed</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <figure style="margin-top:1.5rem">
+        <img src="check-run.png" width="1600" height="1070" loading="lazy" alt="GitHub check run named Behavior Diff, marked Failed under behavior lock. Its table lists three functions: shipping_cost(40.0) returns 5.99 before and 0.0 after; median([1, 0]) leaves its argument as [1, 0] before but sorts it to [0, 1] after; age_group(18) returns 'adult' before and 'teen' after. Below it are 3 ready-to-paste regression tests.">
+        <figcaption>A real check run from the end-to-end test.</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section id="setup" aria-labelledby="setup-h">
+    <div class="wrap">
+      <h2 id="setup-h">Set up in 60 seconds</h2>
+      <p class="sub">You need Python 3.12 and <a href="https://docs.astral.sh/uv/">uv</a>. <code>create-app</code> uses GitHub's manifest flow, so you only click "Create GitHub App" once.</p>
+<pre><code>git clone https://github.com/lakshanmuruganandam/twinrun.git &amp;&amp; cd twinrun
+uv sync
+uv run twinrun create-app        # click "Create GitHub App", then install it on a repo
+npx smee-client --url "$(grep SMEE_URL .env | cut -d= -f2)" --target http://localhost:8000/webhook &amp;
+uv run twinrun serve             # open a PR and watch the Behavior Diff check appear</code></pre>
+      <p class="sub" style="margin-top:1rem">Try it without GitHub: <code>uv run twinrun analyze path/to/base path/to/head --label refactor</code></p>
+    </div>
+  </section>
+
+  <section id="limits" aria-labelledby="limits-h">
+    <div class="wrap">
+      <h2 id="limits-h">Honest limits</h2>
+      <ul class="limits">
+        <li><strong>Python only.</strong> It works best on module-level functions, static methods and class methods with built-in argument types.</li>
+        <li><strong>Skipped, and the report says why:</strong> instance methods, custom-class parameters, unhinted parameters with no call site to learn from, and I/O-heavy code.</li>
+        <li><strong>No difference means no difference on the inputs tried.</strong> That's strong evidence, not a proof.</li>
+        <li>Code is imported with TwinRun's interpreter. Modules with third-party imports it doesn't have are skipped, and the error is shown.</li>
+      </ul>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>TwinRun · MIT License · © 2026 Lakshan Muruganandam</span>
+    <span><a href="https://github.com/lakshanmuruganandam/twinrun">Source</a> · <a href="https://github.com/lakshanmuruganandam/twinrun/blob/main/SECURITY.md">Security</a> · <a href="https://github.com/lakshanmuruganandam/twinrun/blob/main/CONTRIBUTING.md">Contributing</a></span>
+  </div>
+</footer>
+</body>
+</html>

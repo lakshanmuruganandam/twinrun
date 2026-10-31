@@ -49,3 +49,16 @@ PR #1 comment table (head `324d3fe`):
 simpler than the smallest input already seen, so that row is honestly marked "(not shrunk)".
 
 ![check run](check-run.png)
+
+## v0.2.0 re-check (same day)
+
+After adding generated regression tests, the server was restarted on the new code, and PR #1 got one more
+commit (`median` now sorts its argument in place). The same comment was updated (still **1** bot comment),
+and the check found three functions, including the new **argument mutation change** for `median([1, 0])`.
+
+The regression-test block was then copied **out of the live GitHub comment** and run against both branches:
+
+```
+main:            3 passed
+behavior-change: 3 failed
+```
