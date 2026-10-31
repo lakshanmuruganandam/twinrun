@@ -8,10 +8,12 @@ sandbox, and posts a **Behavior Diff** check with the smallest input that makes 
 
 | function | divergence | smallest input | base output | head output |
 |---|---|---|---|---|
-| `age_group` | value change ×3 | `age_group(18)` | `'adult'` | `'teen'` |
-| `shipping_cost` | value change ×19 | `shipping_cost(40.0)` | `5.99` | `0.0` |
+| `shipping_cost` | value change ×9 | `shipping_cost(40.0)` | `5.99` | `0.0` |
+| `age_group` | value change ×4 | `age_group(18)` | `'adult'` | `'teen'` |
 
-![A real Behavior Diff check run](docs/check-run.png)
+![A real Behavior Diff check run on twinrun-playground PR #1, failing under behavior lock](docs/check-run.png)
+
+*Real check run from the end-to-end test ([docs/E2E.md](docs/E2E.md)). The PR lowered a module constant and changed `<` to `<=`. Neither function's tests would have flagged it.*
 
 A reviewer sees right away that `age_group(18)` changed, without having to work it out from a `<` → `<=`.
 A PR that claims to be "just a refactor" can *prove* it: add the `refactor` label, and the
