@@ -1,0 +1,18 @@
+{
+  "name": "TwinRun",
+  "url": "https://github.com/lakshanmuruganandam/twinrun",
+  "description": "Behavior Diff for pull requests: runs every changed Python function at merge-base and head on the same generated inputs, in a sandbox, and shows reviewers where the outputs differ.",
+  "public": false,
+  "hook_attributes": {
+    "url": "https://smee.io/REPLACED_BY_create-app",
+    "active": true
+  },
+  "redirect_url": "http://localhost:3456/callback",
+  "default_permissions": {
+    "checks": "write",
+    "pull_requests": "write",
+    "contents": "read",
+    "metadata": "read"
+  },
+  "default_events": ["pull_request"]
+}
