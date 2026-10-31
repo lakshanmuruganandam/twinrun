@@ -1,6 +1,6 @@
 [project]
 name = "twinrun"
-version = "0.1.0"
+version = "0.2.0"
 description = "Behavior Diff for pull requests: run changed functions at base and head on the same generated inputs and show where they differ."
 readme = "README.md"
 authors = [
@@ -27,9 +27,22 @@ build-backend = "uv_build"
 [dependency-groups]
 dev = [
     "pytest>=9.2.0",
+    "ruff>=0.17.3",
 ]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 norecursedirs = [".*", "*.egg", "build", "dist", "node_modules", "tests/fixtures", "tests/sandbox_fixtures"]
 addopts = "-p no:cacheprovider"
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+extend-exclude = ["tests/fixtures", "tests/sandbox_fixtures"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM"]
+ignore = ["SIM105", "B904"]
+
+[tool.ruff.lint.per-file-ignores]
+"src/twinrun/cli.py" = ["E501"]  # inline CSS for the setup pages

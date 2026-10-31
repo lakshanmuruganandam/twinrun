@@ -59,7 +59,7 @@ class Plan:
     strategy: st.SearchStrategy     # draws (args_tuple, kwargs_dict)
     seeds: list[tuple[tuple, dict]] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)
-    consts: "Constants | None" = None
+    consts: Constants | None = None
 
     def boundary_sweep(self, templates: list[tuple[tuple, dict]], per_template: int = 3) -> list:
         """Deterministic boundary probes: for each template call, replace one numeric
@@ -87,7 +87,7 @@ def signature_params(fn: ast.FunctionDef | ast.AsyncFunctionDef, drop_first: boo
     positional = list(a.posonlyargs) + list(a.args)
     defaults: list = [None] * (len(positional) - len(a.defaults)) + list(a.defaults)
     out: list[Param] = []
-    for i, (arg, d) in enumerate(zip(positional, defaults)):
+    for i, (arg, d) in enumerate(zip(positional, defaults, strict=True)):
         if drop_first and i == 0:
             continue
         p = Param(arg.arg, "pos", arg.annotation)
@@ -98,7 +98,7 @@ def signature_params(fn: ast.FunctionDef | ast.AsyncFunctionDef, drop_first: boo
             except (ValueError, SyntaxError, TypeError):
                 p.default = _NonLiteral
         out.append(p)
-    for arg, d in zip(a.kwonlyargs, a.kw_defaults):
+    for arg, d in zip(a.kwonlyargs, a.kw_defaults, strict=True):
         p = Param(arg.arg, "kwonly", arg.annotation)
         if d is not None:
             p.has_default = True
