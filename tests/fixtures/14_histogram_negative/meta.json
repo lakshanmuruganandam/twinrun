@@ -1,0 +1,8 @@
+{
+  "name": "histogram_negative",
+  "kind": "change",
+  "category": "rounding change",
+  "file": "lib/stats.py",
+  "target": "histogram",
+  "description": "negatives bucket toward zero"
+}

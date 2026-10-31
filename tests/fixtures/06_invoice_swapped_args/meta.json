@@ -1,0 +1,8 @@
+{
+  "name": "invoice_swapped_args",
+  "kind": "change",
+  "category": "swapped args",
+  "file": "lib/pricing.py",
+  "target": "invoice_total",
+  "description": "amount and rate swapped"
+}

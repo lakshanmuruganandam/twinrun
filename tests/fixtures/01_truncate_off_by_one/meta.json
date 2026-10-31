@@ -1,0 +1,8 @@
+{
+  "name": "truncate_off_by_one",
+  "kind": "change",
+  "category": "off-by-one",
+  "file": "lib/text.py",
+  "target": "truncate",
+  "description": "keeps one char too many"
+}

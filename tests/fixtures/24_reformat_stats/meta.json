@@ -1,0 +1,8 @@
+{
+  "name": "reformat_stats",
+  "kind": "refactor",
+  "category": "reformat",
+  "file": "lib/stats.py",
+  "target": "*",
+  "description": "black-style reformat + docstring + quotes"
+}

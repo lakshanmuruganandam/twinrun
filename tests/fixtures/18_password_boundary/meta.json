@@ -1,0 +1,8 @@
+{
+  "name": "password_boundary",
+  "kind": "change",
+  "category": "flipped boundary",
+  "file": "lib/users.py",
+  "target": "password_ok",
+  "description": "exactly-min-length passwords rejected"
+}

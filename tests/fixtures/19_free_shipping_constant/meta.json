@@ -1,0 +1,8 @@
+{
+  "name": "free_shipping_constant",
+  "kind": "change",
+  "category": "constant change",
+  "file": "lib/pricing.py",
+  "target": "shipping_cost",
+  "description": "function untouched; module constant changed"
+}

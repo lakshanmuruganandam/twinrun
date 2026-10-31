@@ -6,6 +6,7 @@ readme = "README.md"
 authors = [
     { name = "LAKSHAN MURUGANANDAM", email = "95610803+lakshanmuruganandam@users.noreply.github.com" }
 ]
+license = "MIT"
 requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.162.0",
@@ -30,5 +31,5 @@ dev = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-norecursedirs = ["tests/fixtures", "tests/sandbox_fixtures"]
+norecursedirs = [".*", "*.egg", "build", "dist", "node_modules", "tests/fixtures", "tests/sandbox_fixtures"]
 addopts = "-p no:cacheprovider"

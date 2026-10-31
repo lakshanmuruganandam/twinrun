@@ -1,0 +1,8 @@
+{
+  "name": "word_count_generator",
+  "kind": "refactor",
+  "category": "rewrite a loop",
+  "file": "lib/text.py",
+  "target": "word_count",
+  "description": "list comprehension -> generator sum"
+}

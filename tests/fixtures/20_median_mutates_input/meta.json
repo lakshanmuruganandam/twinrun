@@ -1,0 +1,8 @@
+{
+  "name": "median_mutates_input",
+  "kind": "change",
+  "category": "in-place mutation",
+  "file": "lib/stats.py",
+  "target": "median",
+  "description": "sorts the caller's list in place"
+}

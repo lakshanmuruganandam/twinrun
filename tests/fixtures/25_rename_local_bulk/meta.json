@@ -1,0 +1,8 @@
+{
+  "name": "rename_local_bulk",
+  "kind": "refactor",
+  "category": "rename a local",
+  "file": "lib/pricing.py",
+  "target": "bulk_price",
+  "description": "total -> amount"
+}

@@ -1,0 +1,8 @@
+{
+  "name": "leap_early_returns",
+  "kind": "refactor",
+  "category": "rewrite a branch",
+  "file": "lib/dates.py",
+  "target": "is_leap",
+  "description": "boolean expression -> early returns"
+}

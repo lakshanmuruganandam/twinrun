@@ -1,0 +1,8 @@
+{
+  "name": "quarter_off_by_one",
+  "kind": "change",
+  "category": "off-by-one",
+  "file": "lib/dates.py",
+  "target": "quarter",
+  "description": "March becomes Q2"
+}

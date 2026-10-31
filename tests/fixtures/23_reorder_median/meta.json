@@ -1,0 +1,8 @@
+{
+  "name": "reorder_median",
+  "kind": "refactor",
+  "category": "reorder independent statements",
+  "file": "lib/stats.py",
+  "target": "median",
+  "description": "compute n/mid before sorting"
+}

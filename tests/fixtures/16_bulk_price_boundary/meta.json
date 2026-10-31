@@ -1,0 +1,8 @@
+{
+  "name": "bulk_price_boundary",
+  "kind": "change",
+  "category": "flipped boundary",
+  "file": "lib/pricing.py",
+  "target": "bulk_price",
+  "description": "unhinted; boundary at qty=10"
+}

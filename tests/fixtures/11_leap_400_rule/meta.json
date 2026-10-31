@@ -1,0 +1,8 @@
+{
+  "name": "leap_400_rule",
+  "kind": "change",
+  "category": "value change",
+  "file": "lib/dates.py",
+  "target": "is_leap",
+  "description": "forgets the 400-year rule"
+}

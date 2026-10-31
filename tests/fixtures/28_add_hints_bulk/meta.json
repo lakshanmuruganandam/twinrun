@@ -1,0 +1,8 @@
+{
+  "name": "add_hints_bulk",
+  "kind": "refactor",
+  "category": "add type hints",
+  "file": "lib/pricing.py",
+  "target": "bulk_price",
+  "description": "adds annotations"
+}

@@ -1,0 +1,8 @@
+{
+  "name": "shipping_ternary",
+  "kind": "refactor",
+  "category": "rewrite a branch",
+  "file": "lib/pricing.py",
+  "target": "shipping_cost",
+  "description": "if/else -> conditional expression"
+}
