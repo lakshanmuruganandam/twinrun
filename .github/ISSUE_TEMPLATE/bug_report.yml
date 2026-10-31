@@ -1,0 +1,33 @@
+name: Bug report
+description: TwinRun reported something wrong, missed a change, or crashed
+labels: [bug]
+body:
+  - type: dropdown
+    id: kind
+    attributes:
+      label: What went wrong?
+      options:
+        - False alarm (flagged a change that does not change behavior)
+        - Missed change (behavior changed but TwinRun said it didn't)
+        - Crash or error
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Base and head versions of the function
+      description: The smallest code that shows the problem.
+      render: python
+    validations:
+      required: true
+  - type: textarea
+    id: report
+    attributes:
+      label: What TwinRun printed
+      description: Paste the check output or `twinrun analyze` output.
+  - type: input
+    id: env
+    attributes:
+      label: OS and Python version
+      placeholder: macOS 15, Python 3.12.7
